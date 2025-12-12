@@ -1,5 +1,5 @@
 from shiny import App, ui, render, reactive
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs
 import requests
 import json
 
@@ -145,24 +145,22 @@ def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
 def server(input, output, session):
 
     # -----------------------------------------
-    # ⭐ Step 1：取得 Query String
+    # ⭐ Step 1：安全讀取 Query String（0.0.1 唯一可用方法）
     # -----------------------------------------
-    url = session.request.url
-    parsed = urlparse(url)
-    qp = {k: v[0] for k, v in parse_qs(parsed.query).items()}
+    raw_qs = session._process.scope.get("query_string", b"").decode()
 
-    # Debug 印出來（可移除）
+    qp = {k: v[0] for k, v in parse_qs(raw_qs).items()}
+
     print("=== QUERY PARAMS ===")
     print(qp)
     print("====================")
 
-    # 取出 token/pid/fhir
     token = qp.get("token")
     pid   = qp.get("pid")
     fhir  = qp.get("fhir")
 
     # -----------------------------------------
-    # ⭐ Step 2：FHIR call
+    # ⭐ Step 2：FHIR 呼叫
     # -----------------------------------------
     @reactive.Calc
     def patient_data():
@@ -182,7 +180,7 @@ def server(input, output, session):
             return {"error": f"FHIR request failed: {e}"}
 
     # -----------------------------------------
-    # ⭐ Step 3：輸出 FHIR 結果
+    # ⭐ Step 3：顯示 FHIR 結果
     # -----------------------------------------
     @output
     @render.text
@@ -191,7 +189,7 @@ def server(input, output, session):
         return json.dumps(data, indent=2)
 
     # -----------------------------------------
-    # ⭐ 保留原本 CHARM prediction — 不修改
+    # ⭐ 原本 CHARM prediction — 不動
     # -----------------------------------------
     @output
     @render.text
