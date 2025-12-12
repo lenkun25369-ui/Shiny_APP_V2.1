@@ -145,22 +145,21 @@ def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
 def server(input, output, session):
 
     # -----------------------------------------
-    # ⭐ Step 1：安全讀取 Query String（0.0.1 唯一可用方法）
+    # ⭐ Step 1：讀取 Query String（Shiny 0.0.1 唯一可靠方法）
     # -----------------------------------------
     raw_qs = session._process.scope.get("query_string", b"").decode()
-
     qp = {k: v[0] for k, v in parse_qs(raw_qs).items()}
 
-    print("=== QUERY PARAMS ===")
+    print("=== QUERY PARAMS RECEIVED BY SHINY ===")
     print(qp)
-    print("====================")
+    print("======================================")
 
     token = qp.get("token")
     pid   = qp.get("pid")
     fhir  = qp.get("fhir")
 
     # -----------------------------------------
-    # ⭐ Step 2：FHIR 呼叫
+    # ⭐ Step 2：FHIR Patient 呼叫
     # -----------------------------------------
     @reactive.Calc
     def patient_data():
@@ -180,7 +179,7 @@ def server(input, output, session):
             return {"error": f"FHIR request failed: {e}"}
 
     # -----------------------------------------
-    # ⭐ Step 3：顯示 FHIR 結果
+    # ⭐ Step 3：顯示 FHIR 結果（新增）
     # -----------------------------------------
     @output
     @render.text
@@ -189,7 +188,7 @@ def server(input, output, session):
         return json.dumps(data, indent=2)
 
     # -----------------------------------------
-    # ⭐ 原本 CHARM prediction — 不動
+    # ⭐ 原本 CHARM prediction — 不做任何改動
     # -----------------------------------------
     @output
     @render.text
