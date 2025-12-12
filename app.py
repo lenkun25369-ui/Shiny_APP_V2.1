@@ -158,7 +158,7 @@ def server(input, output, session):
         }
 
         try:
-            res = requests.get(url, headers=headers)
+            res = requests.get(url, headers=headers, verify=False)
             return res.json()
         except Exception as e:
             return {"error": f"FHIR request failed: {e}"}
