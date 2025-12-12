@@ -8,9 +8,13 @@ import json
 app_ui = ui.page_fluid(
 
     # ⭐ 新增：三個 hidden input（JS 會把 token/pid/fhir 塞進來）
-    ui.input_text("token", "", value="", hidden=True),
-    ui.input_text("pid", "", value="", hidden=True),
-    ui.input_text("fhir", "", value="", hidden=True),
+    # invisible inputs for hash transfer
+    ui.tags.style("""
+    #token, #pid, #fhir { display: none !important; }
+    """),
+    ui.input_text("token", ""),
+    ui.input_text("pid", ""),
+    ui.input_text("fhir", ""),
 
     ui.h2("Predict In-hospital Mortality by CHARM score in Patients with Suspected Sepsis"),
 
