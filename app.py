@@ -1,5 +1,4 @@
 from shiny import App, ui, render, reactive
-from urllib.parse import parse_qs
 import requests
 import json
 
@@ -8,9 +7,14 @@ import json
 # -------------------------------
 app_ui = ui.page_fluid(
 
+    # ⭐ 新增：三個 hidden input（JS 會把 token/pid/fhir 塞進來）
+    ui.input_text("token", "", value="", hidden=True),
+    ui.input_text("pid", "", value="", hidden=True),
+    ui.input_text("fhir", "", value="", hidden=True),
+
     ui.h2("Predict In-hospital Mortality by CHARM score in Patients with Suspected Sepsis"),
 
-    # ⭐ 新增：顯示 FHIR 資料（不改動原本 UI）
+    # ⭐ 顯示 FHIR Patient 信息
     ui.h4("FHIR Patient Data"),
     ui.tags.pre(ui.output_text("patient_info")),
 
@@ -58,7 +62,7 @@ app_ui = ui.page_fluid(
                 choices={"No": "No", "Yes": "Yes"},
                 selected="No",
                 inline=True
-            )
+            ),
         ),
 
         ui.div(
@@ -76,7 +80,7 @@ app_ui = ui.page_fluid(
 )
 
 # -------------------------------
-# Prediction function（保持完全不動）
+# Prediction function（完全不動）
 # -------------------------------
 def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
 
@@ -90,54 +94,20 @@ def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
         "malignancy": inputdata[4],
     }
 
-    if pred_data["chills"] == "No":
-        pred_data["chills"] = 0
-    else:
-        pred_data["chills"] = 1
+    for key in pred_data:
+        pred_data[key] = 0 if pred_data[key] == "No" else 1
 
-    if pred_data["hypothermia"] == "No":
-        pred_data["hypothermia"] = 0
-    else:
-        pred_data["hypothermia"] = 1
+    score = sum(pred_data.values())
 
-    if pred_data["anemia"] == "No":
-        pred_data["anemia"] = 0
-    else:
-        pred_data["anemia"] = 1
-
-    if pred_data["rdw"] == "No":
-        pred_data["rdw"] = 0
-    else:
-        pred_data["rdw"] = 1
-
-    if pred_data["malignancy"] == "No":
-        pred_data["malignancy"] = 0
-    else:
-        pred_data["malignancy"] = 1
-
-    score = (
-        pred_data["chills"]
-        + pred_data["hypothermia"]
-        + pred_data["anemia"]
-        + pred_data["rdw"]
-        + pred_data["malignancy"]
-    )
-
-    if score == 0:
-        mortality_prob = 0.36
-    if score == 1:
-        mortality_prob = 1.89
-    if score == 2:
-        mortality_prob = 5.79
-    if score == 3:
-        mortality_prob = 12.97
-    if score == 4:
-        mortality_prob = 23.58
-    if score == 5:
-        mortality_prob = 34.15
-
-    return mortality_prob
-
+    table = {
+        0: 0.36,
+        1: 1.89,
+        2: 5.79,
+        3: 12.97,
+        4: 23.58,
+        5: 34.15
+    }
+    return table[score]
 
 # -------------------------------
 # Server
@@ -145,24 +115,15 @@ def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
 def server(input, output, session):
 
     # -----------------------------------------
-    # ⭐ Step 1：讀取 Query String（Shiny 0.0.1 唯一可靠方法）
-    # -----------------------------------------
-    raw_qs = session._process.scope.get("query_string", b"").decode()
-    qp = {k: v[0] for k, v in parse_qs(raw_qs).items()}
-
-    print("=== QUERY PARAMS RECEIVED BY SHINY ===")
-    print(qp)
-    print("======================================")
-
-    token = qp.get("token")
-    pid   = qp.get("pid")
-    fhir  = qp.get("fhir")
-
-    # -----------------------------------------
-    # ⭐ Step 2：FHIR Patient 呼叫
+    # ⭐ 新方法：直接從 JS 傳進來的 input 讀 token/pid/fhir
     # -----------------------------------------
     @reactive.Calc
     def patient_data():
+
+        token = input.token()
+        pid   = input.pid()
+        fhir  = input.fhir()
+
         if not (token and pid and fhir):
             return {"error": "Missing token / pid / fhir"}
 
@@ -179,16 +140,15 @@ def server(input, output, session):
             return {"error": f"FHIR request failed: {e}"}
 
     # -----------------------------------------
-    # ⭐ Step 3：顯示 FHIR 結果（新增）
+    # ⭐ 顯示 FHIR 結果
     # -----------------------------------------
     @output
     @render.text
     def patient_info():
-        data = patient_data()
-        return json.dumps(data, indent=2)
+        return json.dumps(patient_data(), indent=2)
 
     # -----------------------------------------
-    # ⭐ 原本 CHARM prediction — 不做任何改動
+    # ⭐ 原本 CHARM prediction — 保持完全不動
     # -----------------------------------------
     @output
     @render.text
