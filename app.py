@@ -116,4 +116,78 @@ def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
         "chills": 0 if chills == "No" else 1,
         "hypothermia": 0 if hypothermia == "No" else 1,
         "anemia": 0 if anemia == "No" else 1,
-        "rdw": 0 if
+        "rdw": 0 if rdw == "No" else 1,
+        "malignancy": 0 if malignancy == "No" else 1,
+    }
+
+    score = sum(pred_data.values())
+
+    table = {
+        0: 0.36,
+        1: 1.89,
+        2: 5.79,
+        3: 12.97,
+        4: 23.58,
+        5: 34.15
+    }
+    return table[score]
+
+
+# -------------------------------
+# Server
+# -------------------------------
+def server(input, output, session):
+
+    # -----------------------------------------
+    # ⭐ 從 hidden inputs 取得 token/pid/fhir
+    # -----------------------------------------
+    @reactive.Calc
+    def patient_data():
+
+        token = input.token()
+        pid   = input.pid()
+        fhir  = input.fhir()
+
+        if not (token and pid and fhir):
+            return {"error": "Missing token / pid / fhir"}
+
+        url = f"{fhir}/Patient/{pid}"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/fhir+json"
+        }
+
+        try:
+            res = requests.get(url, headers=headers)
+            return res.json()
+        except Exception as e:
+            return {"error": f"FHIR request failed: {e}"}
+
+    # -----------------------------------------
+    # ⭐ 顯示 FHIR 資料
+    # -----------------------------------------
+    @output
+    @render.text
+    def patient_info():
+        return json.dumps(patient_data(), indent=2)
+
+    # -----------------------------------------
+    # ⭐ 原本 Prediction 不變
+    # -----------------------------------------
+    @output
+    @render.text
+    def prob():
+        return str(
+            pred_tit(
+                input.chills(),
+                input.hypothermia(),
+                input.anemia(),
+                input.rdw(),
+                input.malignancy(),
+            )
+        )
+
+# -------------------------------
+# App
+# -------------------------------
+app = App(app_ui, server)
