@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: shiny-app-v3
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m shiny run --host 0.0.0.0 --port $PORT app.py

@@ -1,0 +1,3 @@
+shiny==0.7.1
+uvicorn
+requests
