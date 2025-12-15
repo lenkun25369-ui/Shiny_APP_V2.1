@@ -198,16 +198,31 @@ def server(input, output, session):
     @output
     @render.text
     def prob():
-
-        score = sum([
-            1 if input.chills() == "Yes" else 0,
-            1 if input.hypothermia() == "Yes" else 0,
-            1 if input.anemia() == "Yes" else 0,
-            1 if input.rdw() == "Yes" else 0,
-            1 if input.malignancy() == "Yes" else 0,
-        ])
-
-        return str(CHARM_TABLE.get(score, "NA"))
+    
+        # ⭐ 尚未讀到 FHIR / Observation → 顯示 Calculating
+        if not patient_data() or "error" in patient_data():
+            return "Calculating..."
+    
+        # ⭐ 使用者尚未與 UI 完整 sync（保險）
+        if not all([
+            input.chills(),
+            input.hypothermia(),
+            input.anemia(),
+            input.rdw(),
+            input.malignancy()
+        ]):
+            return "Calculating..."
+    
+        # ⭐ 正常計算
+        return str(
+            pred_tit(
+                input.chills(),
+                input.hypothermia(),
+                input.anemia(),
+                input.rdw(),
+                input.malignancy(),
+            )
+        )
 
 # -------------------------------
 # App
