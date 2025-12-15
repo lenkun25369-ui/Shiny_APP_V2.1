@@ -195,7 +195,8 @@ def server(input, output, session):
     # -----------------------------------------
     # ⭐ 永遠用「目前 radio buttons」計算
     # -----------------------------------------
-
+    @output
+    @render.text
     def prob():
     
         data = fhir_data()
