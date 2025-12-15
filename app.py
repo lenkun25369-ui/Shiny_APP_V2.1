@@ -199,25 +199,38 @@ def server(input, output, session):
     @render.text
     def prob():
     
+        # -----------------------------------------
+        # 1️⃣ 永遠優先檢查：radio buttons 是否可用
+        #    （手動模式一定要能算）
+        # -----------------------------------------
+        if all([
+            input.chills() is not None,
+            input.hypothermia() is not None,
+            input.anemia() is not None,
+            input.rdw() is not None,
+            input.malignancy() is not None,
+        ]):
+            score = sum([
+                1 if input.chills() == "Yes" else 0,
+                1 if input.hypothermia() == "Yes" else 0,
+                1 if input.anemia() == "Yes" else 0,
+                1 if input.rdw() == "Yes" else 0,
+                1 if input.malignancy() == "Yes" else 0,
+            ])
+            return str(CHARM_TABLE.get(score, "NA"))
+    
+        # -----------------------------------------
+        # 2️⃣ 若 radio buttons 還沒 ready，才考慮 FHIR
+        # -----------------------------------------
         data = fhir_data()
     
-        # ⭐ 尚未讀到 Patient / Observation → 顯示 Calculating
         if not data or "error" in data:
             return "Calculating..."
     
-        # ⭐ Observation 尚未 ready（保險）
         if "observation" not in data:
             return "Calculating..."
     
-        # ⭐ radio buttons 尚未同步完成（保險）
-        if not all([
-            input.chills(),
-            input.hypothermia(),
-            input.anemia(),
-            input.rdw(),
-            input.malignancy()
-        ]):
-            return "Calculating..."
+        return "Calculating..."
     
         # ⭐ 使用「目前 UI 狀態」計算（FHIR auto-fill + user override）
         score = sum([
