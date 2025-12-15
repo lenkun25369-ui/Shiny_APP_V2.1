@@ -44,8 +44,10 @@ app_ui = ui.page_fluid(
 
     ui.h2("Predict In-hospital Mortality by CHARM score in Patients with Suspected Sepsis"),
 
-    ui.h4("FHIR Patient & Observation Data"),
-    ui.tags.pre(ui.output_text("patient_info")),
+    ui.tags.details(
+        ui.tags.summary("FHIR Patient & Observation Data (click to expand)"),
+        ui.tags.pre(ui.output_text("patient_info"))
+    ),
 
     ui.layout_sidebar(
 
