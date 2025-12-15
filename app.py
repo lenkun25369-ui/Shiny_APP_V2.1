@@ -8,7 +8,7 @@ import json
 app_ui = ui.page_fluid(
 
     # -----------------------------------------------
-    # ⭐ 方法 C：讀取 URL #hash，將 token / pid / fhir / obs 傳入 Shiny input
+    # ⭐ 從 URL #hash 讀取 token / pid / fhir / obs
     # -----------------------------------------------
     ui.tags.script("""
     (function () {
@@ -18,32 +18,30 @@ app_ui = ui.page_fluid(
       const token = params.get("token");
       const pid   = params.get("pid");
       const fhir  = params.get("fhir");
-      const obs   = params.get("obs");   // ⭐ NEW
+      const obs   = params.get("obs");
 
       function sendToShiny() {
         if (window.Shiny && Shiny.setInputValue) {
           Shiny.setInputValue("token", token);
           Shiny.setInputValue("pid", pid);
           Shiny.setInputValue("fhir", fhir);
-          Shiny.setInputValue("obs", obs);   // ⭐ NEW
+          Shiny.setInputValue("obs", obs);
           console.log("✔ Sent to Shiny:", { token, pid, fhir, obs });
         } else {
           setTimeout(sendToShiny, 300);
         }
       }
-
       sendToShiny();
     })();
     """),
 
-    # Hidden inputs so Shiny can receive values
     ui.tags.style("""
     #token, #pid, #fhir, #obs { display: none !important; }
     """),
     ui.input_text("token", ""),
     ui.input_text("pid", ""),
     ui.input_text("fhir", ""),
-    ui.input_text("obs", ""),   # ⭐ NEW
+    ui.input_text("obs", ""),
 
     ui.h2("Predict In-hospital Mortality by CHARM score in Patients with Suspected Sepsis"),
 
@@ -55,86 +53,45 @@ app_ui = ui.page_fluid(
         ui.sidebar(
             ui.p("Please fill the below details"),
 
-            ui.input_radio_buttons(
-                "chills",
-                "noChills (absence of Chills)",
-                choices={"No": "No", "Yes": "Yes"},
-                selected="No",
-                inline=True
-            ),
+            ui.input_radio_buttons("chills", "noChills (absence of Chills)",
+                                   choices={"No": "No", "Yes": "Yes"}, selected="No", inline=True),
 
-            ui.input_radio_buttons(
-                "hypothermia",
-                "Hypothermia (temperature < 36 °C)",
-                choices={"No": "No", "Yes": "Yes"},
-                selected="No",
-                inline=True
-            ),
+            ui.input_radio_buttons("hypothermia", "Hypothermia (temperature < 36 °C)",
+                                   choices={"No": "No", "Yes": "Yes"}, selected="No", inline=True),
 
-            ui.input_radio_buttons(
-                "anemia",
-                "Anemia (RBC < 4M/uL)",
-                choices={"No": "No", "Yes": "Yes"},
-                selected="No",
-                inline=True
-            ),
+            ui.input_radio_buttons("anemia", "Anemia (RBC < 4M/uL)",
+                                   choices={"No": "No", "Yes": "Yes"}, selected="No", inline=True),
 
-            ui.input_radio_buttons(
-                "rdw",
-                "RDW > 14.5%",
-                choices={"No": "No", "Yes": "Yes"},
-                selected="No",
-                inline=True
-            ),
+            ui.input_radio_buttons("rdw", "RDW > 14.5%",
+                                   choices={"No": "No", "Yes": "Yes"}, selected="No", inline=True),
 
-            ui.input_radio_buttons(
-                "malignancy",
-                "Malignancy (history)",
-                choices={"No": "No", "Yes": "Yes"},
-                selected="No",
-                inline=True
-            ),
+            ui.input_radio_buttons("malignancy", "Malignancy (history)",
+                                   choices={"No": "No", "Yes": "Yes"}, selected="No", inline=True),
         ),
 
         ui.div(
             ui.h3("Predicted in-hospital mortality (%):"),
             ui.h4(ui.output_text("prob")),
             ui.help_text(
-                ui.a(
-                    "Click here to see the reference",
-                    href="https://www.ncbi.nlm.nih.gov/pubmed/?term=27832977"
-                )
+                ui.a("Click here to see the reference",
+                     href="https://www.ncbi.nlm.nih.gov/pubmed/?term=27832977")
             ),
-            ui.help_text("Produced by Dr.Chin-Chieh Wu")
+            ui.help_text("Produced by Dr. Chin-Chieh Wu")
         )
     )
 )
 
 # -------------------------------
-# Prediction function（完全不動）
+# Prediction table（不動）
 # -------------------------------
-def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
-
-    pred_data = {
-        "chills": 0 if chills == "No" else 1,
-        "hypothermia": 0 if hypothermia == "No" else 1,
-        "anemia": 0 if anemia == "No" else 1,
-        "rdw": 0 if rdw == "No" else 1,
-        "malignancy": 0 if malignancy == "No" else 1,
-    }
-
-    score = sum(pred_data.values())
-
-    table = {
-        0: 0.36,
-        1: 1.89,
-        2: 5.79,
-        3: 12.97,
-        4: 23.58,
-        5: 34.15
-    }
-    return table[score]
-
+CHARM_TABLE = {
+    0: 0.36,
+    1: 1.89,
+    2: 5.79,
+    3: 12.97,
+    4: 23.58,
+    5: 34.15
+}
 
 # -------------------------------
 # Server
@@ -142,7 +99,7 @@ def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
 def server(input, output, session):
 
     # -----------------------------------------
-    # ⭐ 從 hidden inputs 取得 token / pid / fhir / obs
+    # 取得 Patient + Observation
     # -----------------------------------------
     @reactive.Calc
     def fhir_data():
@@ -150,7 +107,7 @@ def server(input, output, session):
         token = input.token()
         pid   = input.pid()
         fhir  = input.fhir()
-        obs   = input.obs()    # ⭐ NEW
+        obs   = input.obs()
 
         if not (token and pid and fhir):
             return {"error": "Missing token / pid / fhir"}
@@ -162,37 +119,25 @@ def server(input, output, session):
 
         result = {}
 
-        # -------------------------------
-        # 原本就有的：Patient
-        # -------------------------------
-        try:
-            patient_res = requests.get(
-                f"{fhir}/Patient/{pid}",
+        # Patient
+        result["patient"] = requests.get(
+            f"{fhir}/Patient/{pid}",
+            headers=headers,
+            verify=False
+        ).json()
+
+        # Observation
+        if obs:
+            result["observation"] = requests.get(
+                obs,
                 headers=headers,
                 verify=False
-            )
-            result["patient"] = patient_res.json()
-        except Exception as e:
-            result["patient_error"] = str(e)
-
-        # -------------------------------
-        # ⭐ NEW：Observation（如果 obs 存在）
-        # -------------------------------
-        if obs:
-            try:
-                obs_res = requests.get(
-                    obs,
-                    headers=headers,
-                    verify=False
-                )
-                result["observation"] = obs_res.json()
-            except Exception as e:
-                result["observation_error"] = str(e)
+            ).json()
 
         return result
 
     # -----------------------------------------
-    # ⭐ 顯示 FHIR Patient + Observation
+    # 顯示 FHIR JSON
     # -----------------------------------------
     @output
     @render.text
@@ -200,20 +145,49 @@ def server(input, output, session):
         return json.dumps(fhir_data(), indent=2)
 
     # -----------------------------------------
-    # ⭐ Prediction（完全不動）
+    # ⭐ 自動計算 CHARM 預測值
     # -----------------------------------------
     @output
     @render.text
     def prob():
-        return str(
-            pred_tit(
-                input.chills(),
-                input.hypothermia(),
-                input.anemia(),
-                input.rdw(),
-                input.malignancy(),
-            )
-        )
+
+        data = fhir_data()
+        obs = data.get("observation")
+
+        # 若有 Observation → 自動計算
+        if obs and "component" in obs:
+
+            chills = hypothermia = anemia = rdw = malignancy = 0
+
+            for c in obs["component"]:
+                code = c.get("code", {}).get("coding", [{}])[0].get("code")
+
+                if code == "chills":
+                    chills = c.get("valueInteger", 0)
+
+                elif code == "malignancy":
+                    malignancy = c.get("valueInteger", 0)
+
+                elif code == "789-8":  # RBC
+                    val = c.get("valueQuantity", {}).get("value")
+                    if val is not None and val < 4.0:
+                        anemia = 1
+
+                elif code == "788-0":  # RDW
+                    val = c.get("valueQuantity", {}).get("value")
+                    if val is not None and val > 14.5:
+                        rdw = 1
+
+                elif code == "8310-5":  # Temperature
+                    val = c.get("valueQuantity", {}).get("value")
+                    if val is not None and val < 36:
+                        hypothermia = 1
+
+            score = chills + hypothermia + anemia + rdw + malignancy
+            return str(CHARM_TABLE.get(score, "NA"))
+
+        # fallback（理論上不會用到）
+        return "NA"
 
 # -------------------------------
 # App
