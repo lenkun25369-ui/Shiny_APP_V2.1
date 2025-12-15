@@ -26,7 +26,6 @@ app_ui = ui.page_fluid(
           Shiny.setInputValue("pid", pid);
           Shiny.setInputValue("fhir", fhir);
           Shiny.setInputValue("obs", obs);
-          console.log("✔ Sent to Shiny:", { token, pid, fhir, obs });
         } else {
           setTimeout(sendToShiny, 300);
         }
@@ -51,7 +50,7 @@ app_ui = ui.page_fluid(
     ui.layout_sidebar(
 
         ui.sidebar(
-            ui.p("Please fill the below details (auto-derived from FHIR)"),
+            ui.p("Please fill the below details (auto-populated from FHIR, editable)"),
 
             ui.input_radio_buttons("chills", "noChills (absence of Chills)",
                                    choices={"No": "No", "Yes": "Yes"},
@@ -148,10 +147,10 @@ def server(input, output, session):
         return json.dumps(fhir_data(), indent=2)
 
     # -----------------------------------------
-    # ⭐ 自動同步 UI（radio buttons）
+    # ⭐ 用 FHIR Observation 設定「預設值」
     # -----------------------------------------
     @reactive.Effect
-    def sync_ui_with_fhir():
+    def init_ui_from_fhir():
 
         data = fhir_data()
         obs = data.get("observation")
@@ -176,67 +175,36 @@ def server(input, output, session):
             elif code == "malignancy" and c.get("valueInteger", 0) == 1:
                 ui_vals["malignancy"] = "Yes"
 
-            elif code == "789-8":  # RBC
-                val = c.get("valueQuantity", {}).get("value")
-                if val is not None and val < 4.0:
+            elif code == "789-8":
+                if c.get("valueQuantity", {}).get("value", 999) < 4.0:
                     ui_vals["anemia"] = "Yes"
 
-            elif code == "788-0":  # RDW
-                val = c.get("valueQuantity", {}).get("value")
-                if val is not None and val > 14.5:
+            elif code == "788-0":
+                if c.get("valueQuantity", {}).get("value", 0) > 14.5:
                     ui_vals["rdw"] = "Yes"
 
-            elif code == "8310-5":  # Temperature
-                val = c.get("valueQuantity", {}).get("value")
-                if val is not None and val < 36:
+            elif code == "8310-5":
+                if c.get("valueQuantity", {}).get("value", 99) < 36:
                     ui_vals["hypothermia"] = "Yes"
 
-        session.send_input_message("chills", {"value": ui_vals["chills"]})
-        session.send_input_message("hypothermia", {"value": ui_vals["hypothermia"]})
-        session.send_input_message("anemia", {"value": ui_vals["anemia"]})
-        session.send_input_message("rdw", {"value": ui_vals["rdw"]})
-        session.send_input_message("malignancy", {"value": ui_vals["malignancy"]})
+        for k, v in ui_vals.items():
+            session.send_input_message(k, {"value": v})
 
     # -----------------------------------------
-    # ⭐ 自動計算 CHARM 預測值
+    # ⭐ 永遠用「目前 radio buttons」計算
     # -----------------------------------------
     @output
     @render.text
     def prob():
 
-        data = fhir_data()
-        obs = data.get("observation")
+        score = sum([
+            1 if input.chills() == "Yes" else 0,
+            1 if input.hypothermia() == "Yes" else 0,
+            1 if input.anemia() == "Yes" else 0,
+            1 if input.rdw() == "Yes" else 0,
+            1 if input.malignancy() == "Yes" else 0,
+        ])
 
-        if not obs or "component" not in obs:
-            return "NA"
-
-        chills = hypothermia = anemia = rdw = malignancy = 0
-
-        for c in obs["component"]:
-            code = c.get("code", {}).get("coding", [{}])[0].get("code")
-
-            if code == "chills":
-                chills = c.get("valueInteger", 0)
-
-            elif code == "malignancy":
-                malignancy = c.get("valueInteger", 0)
-
-            elif code == "789-8":
-                val = c.get("valueQuantity", {}).get("value")
-                if val is not None and val < 4.0:
-                    anemia = 1
-
-            elif code == "788-0":
-                val = c.get("valueQuantity", {}).get("value")
-                if val is not None and val > 14.5:
-                    rdw = 1
-
-            elif code == "8310-5":
-                val = c.get("valueQuantity", {}).get("value")
-                if val is not None and val < 36:
-                    hypothermia = 1
-
-        score = chills + hypothermia + anemia + rdw + malignancy
         return str(CHARM_TABLE.get(score, "NA"))
 
 # -------------------------------
