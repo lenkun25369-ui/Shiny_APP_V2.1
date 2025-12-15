@@ -195,15 +195,20 @@ def server(input, output, session):
     # -----------------------------------------
     # ⭐ 永遠用「目前 radio buttons」計算
     # -----------------------------------------
-    @output
-    @render.text
+
     def prob():
     
-        # ⭐ 尚未讀到 FHIR / Observation → 顯示 Calculating
-        if not patient_data() or "error" in patient_data():
+        data = fhir_data()
+    
+        # ⭐ 尚未讀到 Patient / Observation → 顯示 Calculating
+        if not data or "error" in data:
             return "Calculating..."
     
-        # ⭐ 使用者尚未與 UI 完整 sync（保險）
+        # ⭐ Observation 尚未 ready（保險）
+        if "observation" not in data:
+            return "Calculating..."
+    
+        # ⭐ radio buttons 尚未同步完成（保險）
         if not all([
             input.chills(),
             input.hypothermia(),
@@ -213,16 +218,16 @@ def server(input, output, session):
         ]):
             return "Calculating..."
     
-        # ⭐ 正常計算
-        return str(
-            pred_tit(
-                input.chills(),
-                input.hypothermia(),
-                input.anemia(),
-                input.rdw(),
-                input.malignancy(),
-            )
-        )
+        # ⭐ 使用「目前 UI 狀態」計算（FHIR auto-fill + user override）
+        score = sum([
+            1 if input.chills() == "Yes" else 0,
+            1 if input.hypothermia() == "Yes" else 0,
+            1 if input.anemia() == "Yes" else 0,
+            1 if input.rdw() == "Yes" else 0,
+            1 if input.malignancy() == "Yes" else 0,
+        ])
+    
+        return str(CHARM_TABLE.get(score, "NA"))
 
 # -------------------------------
 # App
