@@ -8,7 +8,7 @@ import json
 app_ui = ui.page_fluid(
 
     # -----------------------------------------------
-    # ⭐ 方法 C：讀取 URL #hash，將 token/pid/fhir 傳入 Shiny input
+    # ⭐ 方法 C：讀取 URL #hash，將 token / pid / fhir / obs 傳入 Shiny input
     # -----------------------------------------------
     ui.tags.script("""
     (function () {
@@ -18,13 +18,15 @@ app_ui = ui.page_fluid(
       const token = params.get("token");
       const pid   = params.get("pid");
       const fhir  = params.get("fhir");
+      const obs   = params.get("obs");   // ⭐ NEW
 
       function sendToShiny() {
         if (window.Shiny && Shiny.setInputValue) {
           Shiny.setInputValue("token", token);
           Shiny.setInputValue("pid", pid);
           Shiny.setInputValue("fhir", fhir);
-          console.log("✔ Sent to Shiny:", { token, pid, fhir });
+          Shiny.setInputValue("obs", obs);   // ⭐ NEW
+          console.log("✔ Sent to Shiny:", { token, pid, fhir, obs });
         } else {
           setTimeout(sendToShiny, 300);
         }
@@ -36,11 +38,12 @@ app_ui = ui.page_fluid(
 
     # Hidden inputs so Shiny can receive values
     ui.tags.style("""
-    #token, #pid, #fhir { display: none !important; }
+    #token, #pid, #fhir, #obs { display: none !important; }
     """),
     ui.input_text("token", ""),
     ui.input_text("pid", ""),
     ui.input_text("fhir", ""),
+    ui.input_text("obs", ""),   # ⭐ NEW
 
     ui.h2("Predict In-hospital Mortality by CHARM score in Patients with Suspected Sepsis"),
 
@@ -108,7 +111,7 @@ app_ui = ui.page_fluid(
 )
 
 # -------------------------------
-# Prediction function
+# Prediction function（完全不動）
 # -------------------------------
 def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
 
@@ -139,40 +142,65 @@ def pred_tit(chills, hypothermia, anemia, rdw, malignancy):
 def server(input, output, session):
 
     # -----------------------------------------
-    # ⭐ 從 hidden inputs 取得 token/pid/fhir
+    # ⭐ 從 hidden inputs 取得 token / pid / fhir / obs
     # -----------------------------------------
     @reactive.Calc
-    def patient_data():
+    def fhir_data():
 
         token = input.token()
         pid   = input.pid()
         fhir  = input.fhir()
+        obs   = input.obs()    # ⭐ NEW
 
         if not (token and pid and fhir):
             return {"error": "Missing token / pid / fhir"}
 
-        url = f"{fhir}/Patient/{pid}"
         headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "application/fhir+json"
         }
 
+        result = {}
+
+        # -------------------------------
+        # 原本就有的：Patient
+        # -------------------------------
         try:
-            res = requests.get(url, headers=headers, verify=False)
-            return res.json()
+            patient_res = requests.get(
+                f"{fhir}/Patient/{pid}",
+                headers=headers,
+                verify=False
+            )
+            result["patient"] = patient_res.json()
         except Exception as e:
-            return {"error": f"FHIR request failed: {e}"}
+            result["patient_error"] = str(e)
+
+        # -------------------------------
+        # ⭐ NEW：Observation（如果 obs 存在）
+        # -------------------------------
+        if obs:
+            try:
+                obs_res = requests.get(
+                    obs,
+                    headers=headers,
+                    verify=False
+                )
+                result["observation"] = obs_res.json()
+            except Exception as e:
+                result["observation_error"] = str(e)
+
+        return result
 
     # -----------------------------------------
-    # ⭐ 顯示 FHIR 資料
+    # ⭐ 顯示 FHIR Patient + Observation
     # -----------------------------------------
     @output
     @render.text
     def patient_info():
-        return json.dumps(patient_data(), indent=2)
+        return json.dumps(fhir_data(), indent=2)
 
     # -----------------------------------------
-    # ⭐ 原本 Prediction 不變
+    # ⭐ Prediction（完全不動）
     # -----------------------------------------
     @output
     @render.text
