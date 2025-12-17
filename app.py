@@ -58,7 +58,7 @@ app_ui = ui.page_fluid(
                                    choices={"No": "No", "Yes": "Yes"},
                                    selected="No", inline=True),
 
-            ui.input_radio_buttons("hypothermia", "Hypothermia (temperature < 36 °C)",
+            ui.input_radio_buttons("hypothermia", "Hypothermia (templo < 36 °C)",
                                    choices={"No": "No", "Yes": "Yes"},
                                    selected="No", inline=True),
 
@@ -77,7 +77,7 @@ app_ui = ui.page_fluid(
 
         ui.div(
             ui.h3("Predicted in-hospital mortality (%):"),
-            ui.h4(ui.output_text("prob")),
+            ui.h4(ui.output_ui("prob")),
             ui.help_text(
                 ui.a("Click here to see the reference",
                      href="https://www.ncbi.nlm.nih.gov/pubmed/?term=27832977")
@@ -196,7 +196,7 @@ def server(input, output, session):
     # ⭐ 永遠用「目前 radio buttons」計算
     # -----------------------------------------
     @output
-    @render.text
+    @render.ui
     def prob():
     
         # -----------------------------------------
@@ -241,7 +241,17 @@ def server(input, output, session):
             1 if input.malignancy() == "Yes" else 0,
         ])
     
-        return str(CHARM_TABLE.get(score, "NA"))
+        prob = CHARM_TABLE.get(score)
+
+        if prob is None:
+            return ui.span("NA")
+        
+        color = "red" if prob > 20 else "black"
+        
+        return ui.span(
+            f"{prob:.2f} %",
+            style=f"color:{color}; font-weight:bold;"
+        )
 
 # -------------------------------
 # App
