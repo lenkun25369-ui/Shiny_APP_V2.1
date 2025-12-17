@@ -200,39 +200,17 @@ def server(input, output, session):
     def prob():
     
         # -----------------------------------------
-        # 1️⃣ 永遠優先檢查：radio buttons 是否可用
-        #    （手動模式一定要能算）
+        # 1️⃣ 永遠用目前 radio buttons 計算
         # -----------------------------------------
-        if all([
+        if not all([
             input.chills() is not None,
             input.hypothermia() is not None,
             input.anemia() is not None,
             input.rdw() is not None,
             input.malignancy() is not None,
         ]):
-            score = sum([
-                1 if input.chills() == "Yes" else 0,
-                1 if input.hypothermia() == "Yes" else 0,
-                1 if input.anemia() == "Yes" else 0,
-                1 if input.rdw() == "Yes" else 0,
-                1 if input.malignancy() == "Yes" else 0,
-            ])
-            return str(CHARM_TABLE.get(score, "NA"))
+            return ui.span("Calculating...")
     
-        # -----------------------------------------
-        # 2️⃣ 若 radio buttons 還沒 ready，才考慮 FHIR
-        # -----------------------------------------
-        data = fhir_data()
-    
-        if not data or "error" in data:
-            return "Calculating..."
-    
-        if "observation" not in data:
-            return "Calculating..."
-    
-        return "Calculating..."
-    
-        # ⭐ 使用「目前 UI 狀態」計算（FHIR auto-fill + user override）
         score = sum([
             1 if input.chills() == "Yes" else 0,
             1 if input.hypothermia() == "Yes" else 0,
@@ -242,16 +220,20 @@ def server(input, output, session):
         ])
     
         prob = CHARM_TABLE.get(score)
-
+    
         if prob is None:
             return ui.span("NA")
-        
+    
+        # -----------------------------------------
+        # ⭐ 顏色規則
+        # -----------------------------------------
         color = "red" if prob > 20 else "black"
-        
+    
         return ui.span(
             f"{prob:.2f} %",
             style=f"color:{color}; font-weight:bold;"
         )
+
 
 # -------------------------------
 # App
